@@ -1,34 +1,57 @@
-## R package, DrImpute
+## DrImpute: Imputing dropout events in single cell RNA sequencing data
 
-Il-Youp Kwak (<ilyoup.kwak@gmail.com>), with contributions from Wuming Gong.
+Wuming Gong (<gongx030@umn.edu>) and Il-Youp Kwak (<ilyoup.kwak@gmail.com>).
 
 R/DrImpute is an R package for imputing dropout events in single-cell RNA-sequencing data. It improve many statistical tools used for scRNA-seq analysis that do not account for dropout events. 
 
 Details are described [here](http://www.biorxiv.org/content/early/2017/08/28/181479)
 
 
-### installation
-From `CRAN` :
-```S
-install.packages("DrImpute")
-```
+## 1. Installation
 
-Or, with `devtools`:
-```S
+The recommended installation method for `DrImpute` is using `install_github` command from `devtools` library.  You will first have to have [devtools](https://github.com/hadley/devtools) package installed.
+
+```r
 library(devtools)
-install_github("ikwak2/DrImpute")
+install_github('gongx030/DrImpute')
 ```
 
-### License
+A number of needed packages are installed in this process.
 
-The R/DrImpute package is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License,
-version 3, as published by the Free Software Foundation.
+## 2. Quick Start
 
-This program is distributed in the hope that it will be useful, but
-without any warranty; without even the implied warranty of
-merchantability or fitness for a particular purpose.  See the GNU
-General Public License for more details.
+We first load the tcm package:
+```r
+library(DrImpute)
+```
 
-A copy of the GNU General Public License, version 3, is available at
-<https://www.r-project.org/Licenses/GPL-3>
+We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from four major types of cells: NP, TH, NF and PEP.  
+```r
+install_github('gongx030/scDataset')
+library(scDataset)
+usoskin
+```
+
+We extract the read count matrix and the cell labels. The the genes that are expressed in zero or only one cell will be removed by the function `preprocessSC`.  
+```r
+X <- assays(usoskin)$count
+X <- preprocessSC(X)
+X.log <- log(X + 1)
+class.label <- colData(usoskin)[['Level.1']]
+```
+
+Then we run the imputation with the DrImpute:
+```r
+set.seed(1)
+X.imp <- DrImpute(X.log)
+```
+
+We can compare the clustering performance (t-SNE followed by k-means) by using the scRNA datasets before and after the imputation:
+```r
+library(mclust)
+library(Rtsne)
+# before imputation
+adjustedRandIndex(kmeans(Rtsne(t(as.matrix(X.log)))$Y, centers = 4)$cluster, class.label)
+# after imputation
+adjustedRandIndex(kmeans(Rtsne(t(as.matrix(X.imp)))$Y, centers = 4)$cluster, class.label)
+```
