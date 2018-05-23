@@ -24,3 +24,34 @@ We first load the tcm package:
 ```r
 library(DrImpute)
 ```
+
+We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from four major types of cells: NP, TH, NF and PEP.  
+```r
+install_github('gongx030/scDataset')
+library(scDataset)
+usoskin
+```
+
+We extract the read count matrix and the cell labels. The the genes that are expressed in zero or only one cell will be removed by the function `preprocessSC`.  
+```r
+X <- assays(usoskin)$count
+X <- preprocessSC(X)
+X.log <- log(X + 1)
+class.label <- colData(usoskin)[['Level.1']]
+```
+
+Then we run the imputation with the DrImpute:
+```r
+set.seed(1)
+X.imp <- DrImpute(X.log)
+```
+
+We can compare the clustering performance (t-SNE followed by k-means) by using the scRNA datasets before and after the imputation:
+```r
+library(mclust)
+library(Rtsne)
+# before imputation
+adjustedRandIndex(kmeans(Rtsne(t(as.matrix(X.log)))$Y, centers = 4)$cluster, class.label)
+# after imputation
+adjustedRandIndex(kmeans(Rtsne(t(as.matrix(X.imp)))$Y, centers = 4)$cluster, class.label)
+```
