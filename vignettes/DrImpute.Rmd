@@ -1,0 +1,88 @@
+---
+title: "DrImpute : imputing dropout events in single-cell RNA-sequencing data"
+date: "`r Sys.Date()`"
+author: "Il-Youp Kwak"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{DrImpute : imputing dropout events in single-cell RNA-sequencing data}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r knitr_options, echo=FALSE, results=FALSE}
+library(knitr)
+opts_chunk$set(fig.width = 12)
+```
+
+This vignette illustrates the use of DrImpute software in single cell RNA sequencing data analysis. 
+
+## Data preparation
+
+Example data is taken from Usoskin et al. (2015), GSE59739. We randomly selected 150 cells from original 799 cells. 
+
+```{r loading, include=FALSE}
+library(DrImpute)
+```
+
+Firstly, genes that are expressed less than 2 cells are removed. 
+```{r loading2}
+
+data(exdata)
+exdata <- preprocessSC(exdata)
+```
+
+Normalization is performed using total read count for simplicity, and then log transformation is applied. 
+```{r loading3}
+sf <- apply(exdata, 2, mean)
+npX <- t(t(exdata) / sf ) 
+lnpX <- log(npX+1)
+```
+
+
+## Data analysis
+
+Dropout Imputation can be simply done using DrImpute function. 
+
+```{r loading4}
+lnpX_imp <- DrImpute(lnpX)
+```
+
+```{r, include=FALSE}
+zero_p <- sum(lnpX == 0)/(dim(lnpX)[1]*dim(lnpX)[2])
+zero_p_imp <- sum(lnpX_imp == 0)/(dim(lnpX)[1]*dim(lnpX)[2])
+```
+
+The ratio of zero is `r round(zero_p,2)`, and `r round(zero_p - zero_p_imp,2)*100` percent of zero's are imputed by DrImpute. 
+
+We visualized single cell RNA sequencing data using PCA with and without imputation by DrImpute.
+```{r viz1, echo=FALSE, fig.width=7, fig.height=3.5 }
+par(mfrow = c(1,2))
+
+lXc <- scale(t(lnpX), center= TRUE, scale = FALSE)
+lXc_imp <- scale(t(lnpX_imp), center= TRUE, scale = FALSE)
+
+library(irlba)
+#svd.lXc <- svd(t(lXc))
+svd.lXc <- irlba(lXc, nv = 2)
+svd.lXc.imp <- irlba(lXc_imp, nv = 2)
+
+PC <- svd.lXc$u %*% diag(svd.lXc$d)
+PC.imp <- svd.lXc.imp$u %*% diag(svd.lXc.imp$d)
+
+plot(PC, bg= c("red", "blue","black", "purple")[factor(colnames(exdata))], type = "p", pch = 21, col = "black", main = "Without imputation", xlab = "PC1", ylab="PC2")
+plot(PC.imp, bg= c("red", "blue","black", "purple")[factor(colnames(exdata))], type = "p", pch=21, col="black", main = "With DrImpute", xlab = "PC1", ylab="PC2")
+
+add_legend <- function(...) {
+  opar <- par(fig=c(0, 1, 0, 1), oma=c(0, 0, 0, 0),
+    mar=c(0, 0, 0, 0), new=TRUE)
+  on.exit(par(opar))
+  plot(0, 0, type='n', bty='n', xaxt='n', yaxt='n')
+  legend(...)
+}
+
+add_legend("bottomright", legend=levels(factor(colnames(exdata))), pch=19, col = c("red","blue", "black", "purple"), cex=1, horiz = TRUE)
+
+```
+
+Prior to the use of DrImpute, the NP, TH, and PEP groups are visually indistinguishable in the 2D space. However, after using DrImpute, NP, TH, and PEP have better separation. 
+

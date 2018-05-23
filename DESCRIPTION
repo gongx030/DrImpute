@@ -1,0 +1,22 @@
+Package: DrImpute
+Version: 1.0
+Date: 2017-7-15
+Title: Imputing Dropout Events in Single-Cell RNA-Sequencing Data
+Description: R codes for imputing dropout events. Many statistical methods in cell type identification, visualization and lineage reconstruction do not account for dropout events ('PCAreduce', 'SC3', 'PCA', 't-SNE', 'Monocle', 'TSCAN', etc). 'DrImpute' can improve the performance of such software by imputing dropout events.
+Author: Il-Youp Kwak with contributions from Wuming Gong
+Maintainer: Il-Youp Kwak <ilyoup.kwak@gmail.com>
+Depends:
+    R (>= 3.1.0)
+Imports:
+    Rcpp
+Suggests:
+    knitr,
+    rmarkdown,
+    devtools,
+    roxygen2,
+    irlba
+License: GPL-3
+VignetteBuilder: knitr
+URL: https://github.com/ikwak2/DrImpute
+LinkingTo: Rcpp, RcppArmadillo
+RoxygenNote: 6.0.1
