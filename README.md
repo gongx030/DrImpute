@@ -1,34 +1,26 @@
-## R package, DrImpute
+## DrImpute: Imputing dropout events in single cell RNA sequencing data
 
-Il-Youp Kwak (<ilyoup.kwak@gmail.com>), with contributions from Wuming Gong.
+Wuming Gong (<gongx030@umn.edu>) and Il-Youp Kwak (<ilyoup.kwak@gmail.com>).
 
 R/DrImpute is an R package for imputing dropout events in single-cell RNA-sequencing data. It improve many statistical tools used for scRNA-seq analysis that do not account for dropout events. 
 
 Details are described [here](http://www.biorxiv.org/content/early/2017/08/28/181479)
 
 
-### installation
-From `CRAN` :
-```S
-install.packages("DrImpute")
-```
+## 1. Installation
 
-Or, with `devtools`:
-```S
+The recommended installation method for `DrImpute` is using `install_github` command from `devtools` library.  You will first have to have [devtools](https://github.com/hadley/devtools) package installed.
+
+```r
 library(devtools)
-install_github("ikwak2/DrImpute")
+install_github('gongx030/DrImpute')
 ```
 
-### License
+A number of needed packages are installed in this process.
 
-The R/DrImpute package is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License,
-version 3, as published by the Free Software Foundation.
+## 2. Quick Start
 
-This program is distributed in the hope that it will be useful, but
-without any warranty; without even the implied warranty of
-merchantability or fitness for a particular purpose.  See the GNU
-General Public License for more details.
-
-A copy of the GNU General Public License, version 3, is available at
-<https://www.r-project.org/Licenses/GPL-3>
+We first load the tcm package:
+```r
+library(DrImpute)
+```
