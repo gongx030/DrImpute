@@ -27,8 +27,8 @@ library(DrImpute)
 
 We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from four major types of cells: NP, TH, NF and PEP.  
 ```r
-install_github('gongx030/scDataset')
-library(scDataset)
+install_github('gongx030/scDatasets')
+library(scDatasets)
 usoskin
 ```
 
