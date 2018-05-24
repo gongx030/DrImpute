@@ -34,10 +34,14 @@ NULL
 #'
 #' @examples
 #'
-#' data(exdata)
-#' exdata <- preprocessSC(exdata)
-#' logdat <- log(exdata + 1)
-#' set.seed(2); logdat_imp <- DrImpute(logdat)
+#' library(scDatasets)
+#' library(SummarizedExperiment)
+#' data(usoskin)
+#' X <- assays(usoskin)$count
+#' X <- preprocess(X, min.expressed.gene = 0)
+#' X.log <- log(X + 1)
+#' set.seed(1)
+#' X.imp <- DrImpute(X.log)
 #' 
 DrImpute <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), fast = FALSE, dropout.probability.threshold = 0, n.dropout = 10000, n.background = 10000, mc.cores = 1){
 
@@ -143,57 +147,6 @@ getCls <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), dim.reduc.pr
 	cls
 
 } # end of getCls
-
-
-#' preprocessSC
-#'
-#' A function for preprocessing gene expression matrix.
-#'
-#' @param X Gene expression matrix (Gene by Cell). 
-#' @param min.expressed.gene Cell level filtering criteria. For a given cell, if the number of expressed genes are less than min.expressed.gene, we filter it out.  
-#' @param min.expressed.cell Gene level filtering criteria. For a given gene, if the number of expressed cells are less than min.expressed.cell, we filter it out.  
-#' @param max.expressed.ratio Gene level filtering criteria. For a given gene, if the ratio of expressed cells are larger than max.expressed.ratio, we filter it out.
-#' @param normalize.by.size.effect Normaize using size factor.
-#' @return Filtered gene expression matrix
-#'
-#' @export
-#'
-#' @author Wuming Gong
-#'
-#' @references
-#' Wuming Gong, Il-Youp Kwak, Pruthvi Pota, Kaoko Koyano-Nakagawa and Daniel J. Garry (2017)
-#' DrImpute: Imputing dropout eveents in single cell RNA sequencing data
-#' 
-#' @examples
-#'
-#' data(exdata)
-#' exdata <- preprocessSC(exdata)
-#'
-#' @seealso \code{\link{DrImpute}}
-preprocessSC <- function(X, min.expressed.gene = 0, min.expressed.cell = 2, max.expressed.ratio = 1, normalize.by.size.effect = FALSE){
-
-	M0 <- ncol(X)
-	N0 <- nrow(X)
-
-	cat(sprintf('number of input genes(nrow(X))=%.d\n', N0))
-	cat(sprintf('number of input cells(ncol(X))=%.d\n', M0))
-	X <- X[, colSums(X > 1) >= min.expressed.gene, drop = FALSE]
-	M <- ncol(X)
-	cat(sprintf('number of input cells that express at least %d genes=%.d\n', min.expressed.gene, M))
-	X <- X[rowSums(X > 1) <= max.expressed.ratio * M & rowSums(X > 1) >= min.expressed.cell, , drop = FALSE]
-	N <- nrow(X)
-	cat(sprintf('number of input genes that are expressed in at least %d cells and at most %.0f%% cells=%.d\n', min.expressed.cell, max.expressed.ratio * 100, N))
-	cat(sprintf('sparsity of expression matrix=%.1f%%\n', 100 * (N * M - sum(X > 0)) / (N * M)))
-
-	if (normalize.by.size.effect){
-		cat(sprintf('scaling raw read counts by size factor\n'))
-	  sf <- apply((X + 1) / exp(rowMeans(log(X + 1))), 2, median)
-		X <- t(t(X) / sf)
-	}
-
-	as.matrix(X)
-
-} # end of preprocess
 
 
 #' estimate.expression

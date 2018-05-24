@@ -35,10 +35,14 @@ Imputing dropout events in single-cell RNA-sequencing data.
 }
 \examples{
 
-data(exdata)
-exdata <- preprocessSC(exdata)
-logdat <- log(exdata + 1)
-set.seed(2); logdat_imp <- DrImpute(logdat)
+library(scDatasets)
+library(SummarizedExperiment)
+data(usoskin)
+X <- assays(usoskin)$count
+X <- preprocess(X, min.expressed.gene = 0)
+X.log <- log(X + 1)
+set.seed(1)
+X.imp <- DrImpute(X.log)
 
 }
 \references{
