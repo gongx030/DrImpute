@@ -30,13 +30,14 @@ We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from 
 install_github('gongx030/scDatasets')
 library(scDatasets)
 library(SummarizedExperiment)
+data(usoskin)
 usoskin
 ```
 
 We extract the read count matrix and the cell labels. The the genes that are expressed in zero or only one cell will be removed by the function `preprocessSC`.  
 ```r
 X <- assays(usoskin)$count
-X <- preprocessSC(X)
+X <- preprocess(X, min.expressed.gene = 0)
 X.log <- log(X + 1)
 class.label <- colData(usoskin)[['Level.1']]
 ```
