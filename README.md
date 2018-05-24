@@ -29,6 +29,7 @@ We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from 
 ```r
 install_github('gongx030/scDatasets')
 library(scDatasets)
+library(SummarizedExperiment)
 usoskin
 ```
 
