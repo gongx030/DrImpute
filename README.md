@@ -4,8 +4,12 @@ Wuming Gong (<gongx030@umn.edu>) and Il-Youp Kwak (<ilyoup.kwak@gmail.com>).
 
 R/DrImpute is an R package for imputing dropout events in single-cell RNA-sequencing data. It improve many statistical tools used for scRNA-seq analysis that do not account for dropout events. 
 
-Details are described [here](http://www.biorxiv.org/content/early/2017/08/28/181479)
+The paper can be found [https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2226-y](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2226-y).
 
+```DrImpute: imputing dropout events in single cell RNA sequencing data
+Wuming Gong†, Il-Youp Kwak†, Pruthvi Pota, Naoko Koyano-Nakagawa and Daniel J. Garry
+BMC Bioinformatics, 2018, 19:220
+```
 
 ## 1. Installation
 
@@ -30,13 +34,14 @@ We load the scRNA-seq dataset on mouse sensory neurons that have 622 cells from 
 install_github('gongx030/scDatasets')
 library(scDatasets)
 library(SummarizedExperiment)
+data(usoskin)
 usoskin
 ```
 
 We extract the read count matrix and the cell labels. The the genes that are expressed in zero or only one cell will be removed by the function `preprocessSC`.  
 ```r
 X <- assays(usoskin)$count
-X <- preprocessSC(X)
+X <- preprocess(X, min.expressed.gene = 0)
 X.log <- log(X + 1)
 class.label <- colData(usoskin)[['Level.1']]
 ```
