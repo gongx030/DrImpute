@@ -5,7 +5,7 @@
 \title{pca.dist.matrix}
 \usage{
 pca.dist.matrix(X, k, dist.method = "spearman", mc.cores = 1,
-  batch.size = 1000)
+  batch.size = NA)
 }
 \arguments{
 \item{X}{Log transformed gene expression matrix (Gene by Cell).}

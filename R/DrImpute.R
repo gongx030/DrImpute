@@ -7,6 +7,66 @@
 #' @useDynLib DrImpute
 NULL
 
+
+#' A function for preprocessing gene expression matrix.
+#'
+#' Preprocess gene expression data 
+#' 
+#' @param X Gene expression matrix (Gene by Cell). 
+#' @param min.expressed.gene Cell level filtering criteria. For a given cell, if the number of expressed genes are less than min.expressed.gene, we filter it out.  
+#' @param min.expressed.cell Gene level filtering criteria. For a given gene, if the number of expressed cells are less than min.expressed.cell, we filter it out.  
+#' @param max.expressed.ratio Gene level filtering criteria. For a given gene, if the ratio of expressed cells are larger than max.expressed.ratio, we filter it out.
+#' @param normalize.by.size.effect Normaize using size factor.
+#' @return Filtered gene expression matrix
+#' @author Wuming Gong
+#'
+#' @references
+#' Wuming Gong, Il-Youp Kwak, Pruthvi Pota, Kaoko Koyano-Nakagawa and Daniel J. Garry (2017+)
+#' DrImpute: Imputing dropout eveents in single cell RNA sequencing data
+#' 
+#' @examples
+#'
+#' library(scDatasets)
+#' library(SummarizedExperiment)
+#' data(usoskin)
+#' X <- assays(usoskin)$count
+#' X <- preprocess(X, min.expressed.gene = 0)
+#'
+#' @seealso \code{\link{DrImpute}}
+preprocess <- function(x, min.expressed.gene = 0, min.expressed.cell = 2, max.expressed.ratio = 1, normalize.by.size.effect = FALSE){
+
+	if (class(x) == 'SummarizedExperiment')
+		X <- assays(x)$count
+	else if (class(x) == 'matrix')
+		X <- x
+	else if (is(x, 'sparseMatrix'))
+		X <- x
+	else
+		stop(sprintf('unknown class(x): %s', class(x)))
+
+	M <- ncol(X)
+	N <- nrow(X)
+	m <- Matrix::colSums(X > 1) >= min.expressed.gene	# cells that have at least min.expressed.gene expreseed genes
+	n <- Matrix::rowSums(X > 1) <= max.expressed.ratio * M & Matrix::rowSums(X > 1) >= min.expressed.cell	# genes that are detected in at least min.expressed.cell or at most max.expressed.ratio cells
+	if (normalize.by.size.effect){
+	  sf <- apply((X[n, m] + 1) / exp(Matrix::rowMeans(log(X[n, m] + 1))), 2, median)
+		X <- t(t(X[n, m]) / sf)
+	}else
+		X <- X[n, m]
+
+	if (class(x) == 'SummarizedExperiment'){
+		x <- x[n, m]
+		assays(x)$count <- X
+	}else if (class(x) == 'matrix'){
+		x <- as.matrix(X)
+	}else if (is(x, 'sparseMatrix')){
+		x <- X
+	}
+	
+	x
+} # end of preprocess
+
+
 #' DrImpute
 #'
 #' Imputing dropout events in single-cell RNA-sequencing data.
@@ -14,13 +74,8 @@ NULL
 #' @param X Gene expression matrix (gene by cell). 
 #' @param ks Number of cell clustering groups. Default set to ks = 10:15. 
 #' @param dists Distribution matrices to use. Default is set to c("spearman", "pearson"). "eucleadian" can be added as well. 
-#' @param fast Whether or not using approximation for large scale scRNA-seq data (default: FALSE)
-#' @param dropout.probability.threshold This argument determine the dropout events for imputation.  If this argument is zero, all
-#'				zero events will be considered for imputation; otherwise, only the zero entries that have greater probability than the specified threshold
-#'				will be imputed (default: 0)
-#' @param n.dropout Number of dropout entries for evaluting the dropout probability (default: 10000)
-#' @param n.background Number of background entries for evaluting the dropout probability (default: 10000)
-#' @param mc.cores Number of CPU cores for the fast method (default: 1)
+#' @param mc.cores Number of CPU cores (default: 1)
+#' @param batch.size Batch size of sampling based MDS approximation; if batch.size is NA, the standard MDS is used. 
 #
 #' @return A matrix object 
 #' 
@@ -43,7 +98,7 @@ NULL
 #' set.seed(1)
 #' X.imp <- DrImpute(X.log)
 #' 
-DrImpute <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), fast = FALSE, dropout.probability.threshold = 0, n.dropout = 10000, n.background = 10000, mc.cores = 1){
+DrImpute <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), batch.size = NA, mc.cores = 1){
 
 	N <- nrow(X)	# number of genes
 	M <- ncol(X) 	# number of cells
@@ -54,46 +109,12 @@ DrImpute <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), fast = FAL
 	is.expressed <- as(X > log(1 + 5), 'lgeMatrix') # dense logical matrix for robustly expressed events
 	cat(sprintf('[%s] %% zero events (X=0): %.1f%%\n', Sys.time(), sum(is.zero) / (N * M) * 100))
 	cat(sprintf('[%s] %% robustly expressed events (X>5): %.1f%%\n', Sys.time(), sum(is.expressed) / (N * M) * 100))
-	cat(sprintf('[%s] fast imputation: %s\n', Sys.time(), fast))
-
-	if (fast){
-
-		X <- as(X, 'dgCMatrix')
-		if (dropout.probability.threshold > 0){
-			dropout <- sample(Matrix::which(is.expressed), n.dropout)						# randomly sampled non-zero events
-			x.dropout <- X[dropout]	# save the original expression values of artificial zeros
-			X[dropout] <- 0	# generate artificial zeros
-			background <- sample(Matrix::which(!is.zero), n.background)						# randomly sampled background zero or weekly detected events
-
-			Xe <- estimate.expression(X, n = c(dropout, background), ks = ks, dists = dists, mc.cores = mc.cores)
-			y <- rep(c(TRUE, FALSE), c(n.dropout, n.background))
-			model <- glm(y ~ ., data.frame(y = y, Xe), family = 'binomial')
-			X[dropout] <- x.dropout	# recover the original input
-
-			Xe <- estimate.expression(X, n = is.zero, ks = ks, dists = dists, mc.cores = mc.cores)
-			yp <- predict(model, data.frame(y = rep(FALSE, sum(is.zero)), Xe), type = 'response')	# predicting the dropout events vs. background zeros
-			is.dropout <- yp > dropout.probability.threshold
-			cat(sprintf('[%s] %% of predicted dropout among all zero events: %.1f%%\n', Sys.time(), sum(is.dropout) / length(is.dropout) * 100))
-		}else{
-			# imputing every zero event
-			Xe <- estimate.expression(X, n = is.zero, ks = ks, dists = dists, mc.cores = mc.cores)
-			is.dropout <- rep(TRUE, sum(is.zero))
-		}
-
-		xe <- rep(0, sum(is.zero))
-		xe[is.dropout] <- Matrix::rowMeans(Xe[is.dropout, , drop = FALSE])
-		X[is.zero] <- xe
-	
-	}else{
-		cls <- getCls(X = X, ks = ks, dists = dists)
-		czp <- sum(X == 0) / (N * M)
-		Xe <- imp0clC(as.matrix(X), cls)
-		rownames(Xe) <- rownames(X)
-		colnames(Xe) <- colnames(X)
-		X <- Xe
+	if (!is.na(batch.size)){
+		cat(sprintf('[%s] batch size: %d cells\n', Sys.time(), batch.size))
 	}
+	cat(sprintf('[%s] # of CPU cores: %d\n', Sys.time(), mc.cores))
 
-
+	X <- estimate.expression(X, ks = ks, dists = dists, mc.cores = mc.cores, batch.size = batch.size)
 	is.zero <- as(X == 0, 'lgeMatrix')	# dense logical matrix for zero indicators
 	cat(sprintf('[%s] %% zero events after imputation: %.1f%%\n', Sys.time(), sum(is.zero) / (N * M) * 100))
 	X
@@ -101,66 +122,18 @@ DrImpute <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), fast = FAL
 } # end of DrImpute
 
 
-#' getCls
-#'
-#' get base clustering results using SC3 based clustering methods.
-#' Similarity matrix constructed using "pearson", "spearman" or "euclidean". K-means clustering is performed on first few number of principal components of similarity matrix.
-#' 
-#' @param X Log transformed gene expression matrix (Gene by Cell). 
-#' @param ks Number of cell clustering groups. Default set to ks = 10:15. 
-#' @param dists Distribution matrices to use. Default is set to c("spearman", "pearson"). "euclidean" can be added as well. 
-#' @param dim.reduc.prop Proportion of principal components to use for K-means clustering.
-#'
-#' @return A matrix object, Each row represent different clustering results.
-#'
-#' @author Il-Youp Kwak
-#'
-#' @references
-#' Wuming Gong, Il-Youp Kwak, Pruthvi Pota, Kaoko Koyano-Nakagawa and Daniel J. Garry (2017+)
-#' DrImpute: Imputing dropout eveents in single cell RNA sequencing data
-getCls <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), dim.reduc.prop = 0.05){
-
-	N = dim(X)[2]
-	ddim = round(N * dim.reduc.prop)
-
-	Ds <- NULL
-	i = 1
-	for( d in dists) {
-		if(d == "spearman") {
-			Ds[[i]] <- as.matrix(1 - cor(X, method = "spearman"))
-			i = i + 1;
-		} else if (d == "pearson") {
-			Ds[[i]] <- as.matrix(1 - cor(X, method = "pearson"))
-			i = i + 1;
-		} else if (d == "euclidean") {
-			Ds[[i]] <- as.matrix(dist(t(X), method = "euclidean"))
-			i = i + 1;
-		}
-	}
-
-	cls <- NULL
-	for(k in ks) {
-		for(d in 1:length(Ds)) {
-			cls <- rbind(cls, kmeans(prcomp(Ds[[d]], center = TRUE, scale. = TRUE)$rotation[,1:ddim], centers = k, iter.max = 1e+09, nstart = 1000)$cluster )
-		}
-	}
-	cls
-
-} # end of getCls
-
-
 #' estimate.expression
 #'
 #' Estimate the expected expression levels for entries in the gene by cell expression matrix 
 #'
 #' @param X Log transformed gene expression matrix (Gene by Cell). 
-#' @param n The entries for imputation. (default: NULL)
 #' @param ks Number of cell clustering groups. (default: 10:15)
 #' @param dists Distribution matrices to use. (default: c("spearman", "pearson"))
 #' @param dim.reduc.prop Proportion of principal components to use for K-means clustering. (default: 0.05)
 #' @param max.dim Maximum dimensions for PCA (default: 100)
 #' @param pc.cdr.cc.cutoff The PC's which correlation coefficient with CDR (cellular detection rate) will be removed. (default: 1)
 #' @param mc.cores Number of CPU cores (default: 1)
+#' @param batch.size Batch size of sampling based MDS approximation
 #'
 #' @return A matrix object
 #'
@@ -169,8 +142,9 @@ getCls <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), dim.reduc.pr
 #' @references
 #' Wuming Gong, Il-Youp Kwak, Pruthvi Pota, Kaoko Koyano-Nakagawa and Daniel J. Garry (2017+)
 #' DrImpute: Imputing dropout eveents in single cell RNA sequencing data
-estimate.expression <- function(X, n = NULL, ks = 10:15, dists = c('spearman', 'pearson'), dim.reduc.prop = 0.05, max.dim = 100, pc.cdr.cc.cutoff = 1, mc.cores = 1){
+estimate.expression <- function(X, ks = 10:15, dists = c('spearman', 'pearson'), dim.reduc.prop = 0.05, max.dim = 100, pc.cdr.cc.cutoff = 1, mc.cores = 1, batch.size = NA){
 
+	X <- as(X, 'dgCMatrix')
 	N <- nrow(X)	# number of genes
 	M <- ncol(X) 	# number of cells
 
@@ -183,7 +157,7 @@ estimate.expression <- function(X, n = NULL, ks = 10:15, dists = c('spearman', '
 	}
 
 	pc.list <- lapply(dists, function(d){
-		pc <- pca.dist.matrix(X, k = ddim, dist.method = d, mc.cores = mc.cores)	# PCA of the distance matrix 
+		pc <- pca.dist.matrix(X, k = ddim, dist.method = d, mc.cores = mc.cores, batch.size = batch.size)	# PCA of the distance matrix 
 		cc <- cor(pc, cdr)
 		exclude <- abs(cc) > pc.cdr.cc.cutoff
 		pc <- pc[, !exclude, drop = FALSE]	# remove the PC's that are highly correlated with the CDR
@@ -192,17 +166,18 @@ estimate.expression <- function(X, n = NULL, ks = 10:15, dists = c('spearman', '
 
 	# clustering single cells and estimate expression based on clustering results
 	param <- expand.grid(d = 1:length(pc.list), k = ks)
-	Xp <- do.call('cbind', mclapply(1:nrow(param), function(i){
+	cls <- do.call('rbind', mclapply(1:nrow(param), function(i){
 		d <- param[i, 'd']	# distance type
 		k <- param[i, 'k']	# number of clusters
 		mem <- kmeans2(pc.list[[d]], centers = k)$cluster	# k-means clustering
-		M2C <- sparseMatrix(i = 1:M, j = mem, dims = c(M, k))	# cell ~ cluster member
-		Xe <- (X %*% M2C) / ((!is.zero) %*% M2C)  # average expression levels of non-zero entries in each cluster
-	  Xe[is.na(Xe) | is.infinite(Xe)] <- 0  # the genes that are all zeros in each cluster
-	  Xe <- Xe %*% t(M2C) # expected expression levels, gene ~ cell
-	  Xe[n]
+		mem
 	}, mc.cores = mc.cores))
-	Xp
+
+	cat(sprintf('[%s] imputing zeros\n', Sys.time()))
+	Xe <- imp0clC(as.matrix(X), cls)
+	rownames(Xe) <- rownames(X)
+	colnames(Xe) <- colnames(X)
+	Xe	
 
 } # end of estimate.expression
 
@@ -224,35 +199,44 @@ estimate.expression <- function(X, n = NULL, ks = 10:15, dists = c('spearman', '
 #' @references
 #' Wuming Gong, Il-Youp Kwak, Pruthvi Pota, Kaoko Koyano-Nakagawa and Daniel J. Garry (2017+)
 #' DrImpute: Imputing dropout eveents in single cell RNA sequencing data
-pca.dist.matrix <- function(X, k, dist.method = 'spearman', mc.cores = 1, batch.size = 1000){
+pca.dist.matrix <- function(X, k, dist.method = 'spearman', mc.cores = 1, batch.size = NA){
 
 	M <- ncol(X)	# number of cells
+
+	if (is.na(batch.size))
+		batch.size <- M
+
 	n.batch <- ceiling(M / batch.size)	# estimate how many batches
-	groups <- sample(1:n.batch, M, replace = TRUE)	# randomly assign data into batches
-	size <- table(factor(groups, 1:n.batch))	# number of samples per batch
 
-	if (n.batch > 1)
-		cat(sprintf('[%s] splitting data into %d batches\n', Sys.time(), n.batch))
+	if (n.batch == 1){
 
-	V.list <- mclapply(1:n.batch, function(b){
-		D <- dist2(X[, groups == b], method = dist.method)
-		t(prcomp2(D, n = k, center = TRUE, scale. = TRUE)$rotation)
-	}, mc.cores = min(mc.cores, n.batch))	# PCA of cells within each batch
+		D <- dist2(X, method = dist.method)
+		V <- t(prcomp2(D, n = k, center = TRUE, scale. = TRUE)$rotation)
 
-	if (n.batch > 1){
+	}else{
+
+		groups <- sample(1:n.batch, M, replace = TRUE)	# randomly assign data into batches
+		size <- table(factor(groups, 1:n.batch))	# number of samples per batch
+
+		V.list <- mclapply(1:n.batch, function(b){
+			D <- dist2(X[, groups == b], method = dist.method)
+			t(cmdscale(D, k))
+		}, mc.cores = min(mc.cores, n.batch))	# PCA of cells within each batch
+
 		m <- lapply(1:n.batch, function(b) sample(1:size[b], max(2, min(size[b], ceiling(batch.size / n.batch)))))	# for sampling a subset of cells from each batch
 		m.align <- lapply(1:n.batch, function(b) which(groups == b)[m[[b]]])	# convert the local index to global index
 		D <- dist2(X[, unlist(m.align)], method = dist.method)
-		V.align <- t(prcomp2(D, n = k, center = TRUE, scale. = TRUE)$rotation)
+		V.align <- t(cmdscale(D, k))
 		V.align <- lapply(split(1:ncol(V.align), list(rep(1:n.batch, sapply(m, length)))), function(i) V.align[, i, drop = FALSE])
 		V.list <- mclapply(1:n.batch, function(b){	# map the local MDS to global MDS
 			s <- svd(V.list[[b]][, m[[b]]])
 			V.align[[b]] %*% s$v %*% diag(1 / s$d) %*% t(s$u) %*% V.list[[b]]
 		}, mc.cores = mc.cores)
+
+		V <- matrix(0, k, M)
+		for (b in 1:n.batch)
+			V[, groups == b] <- V.list[[b]]
 	}
-	V <- matrix(0, k, M)
-	for (b in 1:n.batch)
-		V[, groups == b] <- V.list[[b]]
 	t(V)
 } # end of pca.dist.matrix
 
@@ -325,7 +309,7 @@ prcomp2 <- function(X, n = NA, ...){
 #' D. Schully (2010) 
 #' Web-scale k-means clustering
 #'
-kmeans2 <- function(x, centers, batch.size = 1000, iter.max = 1e+09){
+kmeans2 <- function(x, centers, batch.size = 10000, iter.max = 1e+09){
 
 	M <- nrow(x) # number of samples
 	if (M < batch.size) 
@@ -368,4 +352,6 @@ softmax <- function(x){
 	y <- log(Matrix::rowSums(exp(t(x) - x.max)) + .Machine$double.eps) + x.max	# log(sum(exp(x[, j])))
 	y <- t(exp(t(x) - y))
 } # end of softmax 
+
+
 

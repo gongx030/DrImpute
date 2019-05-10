@@ -4,9 +4,8 @@
 \alias{DrImpute}
 \title{DrImpute}
 \usage{
-DrImpute(X, ks = 10:15, dists = c("spearman", "pearson"), fast = FALSE,
-  dropout.probability.threshold = 0, n.dropout = 10000,
-  n.background = 10000, mc.cores = 1)
+DrImpute(X, ks = 10:15, dists = c("spearman", "pearson"),
+  batch.size = NA, mc.cores = 1)
 }
 \arguments{
 \item{X}{Gene expression matrix (gene by cell).}
@@ -15,17 +14,9 @@ DrImpute(X, ks = 10:15, dists = c("spearman", "pearson"), fast = FALSE,
 
 \item{dists}{Distribution matrices to use. Default is set to c("spearman", "pearson"). "eucleadian" can be added as well.}
 
-\item{fast}{Whether or not using approximation for large scale scRNA-seq data (default: FALSE)}
+\item{batch.size}{Batch size of sampling based MDS approximation; if batch.size is NA, the standard MDS is used.}
 
-\item{dropout.probability.threshold}{This argument determine the dropout events for imputation.  If this argument is zero, all
-zero events will be considered for imputation; otherwise, only the zero entries that have greater probability than the specified threshold
-will be imputed (default: 0)}
-
-\item{n.dropout}{Number of dropout entries for evaluting the dropout probability (default: 10000)}
-
-\item{n.background}{Number of background entries for evaluting the dropout probability (default: 10000)}
-
-\item{mc.cores}{Number of CPU cores for the fast method (default: 1)}
+\item{mc.cores}{Number of CPU cores (default: 1)}
 }
 \value{
 A matrix object

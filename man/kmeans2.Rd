@@ -4,7 +4,7 @@
 \alias{kmeans2}
 \title{kmeans2}
 \usage{
-kmeans2(x, centers, batch.size = 1000, iter.max = 1e+09)
+kmeans2(x, centers, batch.size = 10000, iter.max = 1e+09)
 }
 \arguments{
 \item{x}{An input matrix}

@@ -4,14 +4,12 @@
 \alias{estimate.expression}
 \title{estimate.expression}
 \usage{
-estimate.expression(X, n = NULL, ks = 10:15, dists = c("spearman",
-  "pearson"), dim.reduc.prop = 0.05, max.dim = 100, pc.cdr.cc.cutoff = 1,
-  mc.cores = 1)
+estimate.expression(X, ks = 10:15, dists = c("spearman", "pearson"),
+  dim.reduc.prop = 0.05, max.dim = 100, pc.cdr.cc.cutoff = 1,
+  mc.cores = 1, batch.size = NA)
 }
 \arguments{
 \item{X}{Log transformed gene expression matrix (Gene by Cell).}
-
-\item{n}{The entries for imputation. (default: NULL)}
 
 \item{ks}{Number of cell clustering groups. (default: 10:15)}
 
@@ -24,6 +22,8 @@ estimate.expression(X, n = NULL, ks = 10:15, dists = c("spearman",
 \item{pc.cdr.cc.cutoff}{The PC's which correlation coefficient with CDR (cellular detection rate) will be removed. (default: 1)}
 
 \item{mc.cores}{Number of CPU cores (default: 1)}
+
+\item{batch.size}{Batch size of sampling based MDS approximation}
 }
 \value{
 A matrix object
